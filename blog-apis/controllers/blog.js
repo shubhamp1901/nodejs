@@ -1,9 +1,14 @@
 const asyncHandler = require("express-async-handler");
 const { Blog } = require("../models/blog");
+const { redisClient } = require("../redis/redisClient");
 
 const allBlogs = asyncHandler(async (req, res) => {
   const blogs = await Blog.find({}).sort({ createdAt: -1 }).lean();
   const total = await Blog.countDocuments({});
+
+
+  // Cache result using the key stored in res.locals.cacheKey
+  await redisClient.setEx(res.locals.cacheKey, 3600, JSON.stringify(blogs));
 
   //   if (role === "admin") {
   //     blogs = await Blog.find({}).sort({ createdAt: -1 }).lean();
@@ -17,16 +22,17 @@ const allBlogs = asyncHandler(async (req, res) => {
 });
 
 const myBlogs = asyncHandler(async (req, res) => {
-  const { id: userId } = req.user;
-  const blogs = await Blog.find({ userId: userId })
-    .sort({ createdAt: -1 })
-    .lean();
-  const total = await Blog.countDocuments({ userId: userId });
+  const userId = req.user.id;
 
-    return res
-    .status(200)
-    .json({ success: true, data: blogs, totalItems: total });
+  const blogs = await Blog.find({ userId }).sort({ createdAt: -1 }).lean();
+  const total = await Blog.countDocuments({ userId });
+
+  const result = { data: blogs, totalItems: total };
+  await redisClient.setEx(res.locals.cacheKey, 3600, JSON.stringify(result));
+
+  return res.status(200).json({ success: true, ...result });
 });
+
 
 const createBlog = asyncHandler(async (req, res) => {
   const { id: userId } = req.user;
@@ -96,8 +102,6 @@ const getBlog = asyncHandler(async (req, res) => {
   const { id: BlogId } = req.params;
 
   const blog = await Blog.findOne({ _id: BlogId });
-
-  console.log(blog.userId.toString());
 
   if (!blog) {
     return res.status(404).json({ success: false, message: "No Blog Found" });

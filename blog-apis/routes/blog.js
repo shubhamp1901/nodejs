@@ -9,13 +9,14 @@ const {
   deleteBlog,
   myBlogs,
 } = require("../controllers/blog");
+const checkCache = require("../middlewares/checkCache");
 const router = express.Router();
 
-router.get("/", verifyToken, allBlogs);
+router.get("/", verifyToken, checkCache, allBlogs);
+router.get("/my-blogs", verifyToken, checkCache, myBlogs);
 router.post("/", verifyToken, createBlog);
 router.get("/:id", verifyToken, getBlog);
 router.patch("/:id", verifyToken, updateBlog);
 router.delete("/:id", verifyToken, deleteBlog);
-router.get("/my-blogs", verifyToken, myBlogs);
 
 module.exports = router;
